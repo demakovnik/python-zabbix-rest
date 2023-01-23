@@ -1,4 +1,39 @@
-import base64, argparse, os, util, errno, functools, operator
+import base64, argparse, os, util, errno, functools, itertools
+from prettytable import PrettyTable
+
+def adder(x, y):
+  x = dict(x)
+  key = y['hostid']
+  if key in x:
+    li = list(x[key])
+    li.append(y)
+    x[key] = li
+  else:
+    li = []
+    li.append(y)
+    x[key] = li
+  return x
+
+def make_directory_if_not_exists(directory):
+  if not os.path.exists(directory):
+    try:
+      os.makedirs(directory)
+    except OSError as e:
+      if e.errno != errno.EEXIST:
+        raise
+
+def get_hostnames(hosts):
+  def adder(x, y):
+    x = dict(x)
+    x[y['hostid']]=y['name']
+    return x
+  return functools.reduce(adder, hosts, {})
+
+def dic_return():
+  return {1: "One"} 
+   
+
+
 
 
 if __name__ == "__main__":
@@ -32,17 +67,9 @@ if __name__ == "__main__":
   groups = util.get_groups(url, token)
 
   element_cache_directory = 'element_cache'
+  make_directory_if_not_exists(element_cache_directory)
 
-  if not os.path.exists(element_cache_directory):
-    try:
-      os.makedirs(element_cache_directory)
-    except OSError as e:
-      if e.errno != errno.EEXIST:
-        raise
-
-  element_cache_directory = 'element_cache'
-
-  # Получаем элементы данных, хосты, группы с сервера
+  # Помещаем элементы данных, хосты, группы с сервера в нужные файлы
   with open(os.path.join(element_cache_directory,'items.txt'),'w') as f_obj:
     print(items, file=f_obj)
 
@@ -51,5 +78,43 @@ if __name__ == "__main__":
   
   with open(os.path.join(element_cache_directory,'groups.txt'),'w') as f_obj:
     print(groups, file=f_obj)
+
+  # Фильтруем items, оставляем только с ошибками
+  items = itertools.filterfalse(lambda x: not str(x['error']), items)
+
+  out_dict = functools.reduce(adder, items, {})
+
+  repl = get_hostnames(hosts)
+
+  for item in list(out_dict):
+    name = repl[item]
+    out_dict[name] = out_dict.pop(item)
+
+  #columns = [("hostname","item_name","status","error")]
+  l = [["hostname","item_name","error"]]
+  for dict_item in out_dict:
+    li = out_dict[dict_item]
+    for el in li:
+      l.append([dict_item, el['name'], el['error']])
+  
+  table = l
+  tab = PrettyTable(table[0])
+  tab.add_rows(table[1:])
+  print(tab)
+    
+    
+
+
+  statistics_directory = 'statistics'
+  make_directory_if_not_exists(statistics_directory)
+  with open(os.path.join(statistics_directory,'statistics.txt'),'w') as f_obj:
+    print(tab, file=f_obj)
+
+  
+
+  
+  
+
+
 
 
